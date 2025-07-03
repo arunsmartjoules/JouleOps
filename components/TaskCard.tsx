@@ -12,9 +12,9 @@ import React, { useEffect, useState } from "react";
 import { Picker } from "@react-native-picker/picker";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import axios from "axios";
-import NetInfo from "@react-native-community/netinfo";
-import { useOfflineSyncStore } from "@/app/storing/store";
+import { databases } from "@/util/appwrite";
+import { useAppWriteStore } from "@/storing/appwrite.store";
+import { Query, ID } from "react-native-appwrite";
 
 interface Task {
   record: any;
@@ -25,8 +25,7 @@ interface Task {
 
 interface Choice {
   ID: string;
-  zc_display_value: string;
-  Single_Line: string;
+  Choice: string;
 }
 
 const TaskCard = ({ record, className, taskDetail, onComplete }: Task) => {
@@ -36,17 +35,17 @@ const TaskCard = ({ record, className, taskDetail, onComplete }: Task) => {
   const [preview, setPreview] = useState<boolean>(false);
   const [remarks, setRemarks] = useState<string>("");
 
-  const { addToQueue } = useOfflineSyncStore();
+  const { store } = useAppWriteStore();
 
   useEffect(() => {
     if (!taskDetail) return;
     const init = async () => {
-      setChoices(() =>
-        Array.isArray(taskDetail?.Choices) ? taskDetail.Choices : []
-      );
-      setResponse(record.Response_Value ?? "");
+      const wrapper = `[${taskDetail.choices}]`;
+      const choice_list = JSON.parse(wrapper);
+      setChoices(() => choice_list);
+      setResponse(record.response ?? "");
       const img_url = record.Image
-        ? `https://creatorapp.zohopublic.in/publishapi/v2/smartjoules/smart-joules-app/report/All_Maintenance_Scheduler_Task_List/${record.ID}/Image/download?privatelink=2W361xtEeUYvSCpz9OvhZNQQdfszJ5VzM9CDDdBA45uA6ZvZBjAugkemTskwKuqGYbyOUXRqAFwj0q1wSRnGmy3GYpgdPxXavS87`
+        ? `https://creatorapp.zohopublic.in/publishapi/v2/smartjoules/smart-joules-app/report/All_Maintenance_Scheduler_Task_List/${record?.$ID}/Image/download?privatelink=2W361xtEeUYvSCpz9OvhZNQQdfszJ5VzM9CDDdBA45uA6ZvZBjAugkemTskwKuqGYbyOUXRqAFwj0q1wSRnGmy3GYpgdPxXavS87`
         : null;
       setImg(img_url);
     };
@@ -67,27 +66,27 @@ const TaskCard = ({ record, className, taskDetail, onComplete }: Task) => {
 
     if (!result.canceled) {
       try {
-        const asset = result.assets[0];
-        setImg(asset);
-        const formData = new FormData();
-        formData.append("file", {
-          uri: asset.uri,
-          name: asset.fileName,
-          type: "image/jpeg",
-        } as any);
-        formData.append("report_name", "All_Maintenance_Scheduler_Task_List");
-        formData.append("id", record.ID);
-        const url = `http://192.168.31.171:4000/api/zoho/upload-file`;
+        //   const asset = result.assets[0];
+        //   setImg(asset);
+        //   const formData = new FormData();
+        //   formData.append("file", {
+        //     uri: asset.uri,
+        //     name: asset.fileName,
+        //     type: "image/jpeg",
+        //   } as any);
+        //   formData.append("report_name", "All_Maintenance_Scheduler_Task_List");
+        //   formData.append("id", record.$ID);
+        //   const url = `http://192.168.31.171:4000/api/zoho/upload-file`;
 
-        const response = await fetch(url, {
-          method: "POST",
-          body: formData,
-          headers: {
-            Accept: "application/json",
-          },
-        });
-        const apiResult = await response.json();
-        console.log("Upload result", apiResult);
+        //   const response = await fetch(url, {
+        //     method: "POST",
+        //     body: formData,
+        //     headers: {
+        //       Accept: "application/json",
+        //     },
+        //   });
+        //   const apiResult = await response.json();
+        // console.log("Upload result", apiResult);
         Alert.alert("Image Successfully Uploaded");
       } catch (error: any) {
         console.error("Upload error:", error);
@@ -96,99 +95,40 @@ const TaskCard = ({ record, className, taskDetail, onComplete }: Task) => {
     }
   };
 
-  const openImagePicker = async () => {
-    const permissionResult =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permissionResult.granted) {
-      Alert.alert(
-        "Permission required",
-        "Permission to access gallery is needed!"
-      );
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.7,
-    });
-    if (!result.canceled) {
-      try {
-        const asset = result.assets[0];
-        const formData = new FormData();
-        formData.append("file", {
-          uri: asset.uri,
-          name: asset.fileName,
-          type: "image/jpeg",
-        } as any);
-        formData.append("report_name", "All_Maintenance_Scheduler_Task_List");
-        formData.append("id", record.ID);
-        const url = `http://192.168.31.171:4000/api/zoho/upload-file`;
-
-        const zohoResponse = await fetch(url, {
-          method: "POST",
-          body: formData,
-          headers: {
-            Accept: "application/json",
-          },
-        });
-        const apiResult = await zohoResponse.json();
-        console.log("Upload result", apiResult);
-        Alert.alert("Image Successfully Uploaded");
-      } catch (error: any) {
-        console.error("Upload error:", error);
-        Alert.alert("Upload failed", error);
-      }
-    }
-  };
-
-  const handleOnChange = async (name: string, value: string) => {
-    setResponse(value);
-    const netInfo = await NetInfo.fetch();
+  const handleOnChange = async (choice: any, itemValue: any) => {
     try {
-      let payload: any = {};
-      if (name === "Choice") {
-        const option = choices.find(
-          (choice: any) => choice.zc_display_value === value
+      const payload = {
+        scheduler_task_id: record.$id.toString(),
+        response: itemValue,
+      };
+      const listesDocs = await databases.listDocuments(
+        store.database_id,
+        store.collections.appwrite_pm_sync,
+        [Query.equal("scheduler_task_id", record.$id)]
+      );
+      if (listesDocs.total > 0) {
+        const updatedDoc = await databases.updateDocument(
+          store.database_id,
+          store.collections.appwrite_pm_sync,
+          listesDocs.documents[0].$id,
+          payload
         );
-        payload = {
-          Response_Option: option?.ID,
-          Response_Text: option?.zc_display_value,
-          Response_Value: option?.zc_display_value,
-        };
-      } else if (name === "Number") {
-        payload = {
-          Response_Amount: value,
-          Response_Value: value,
-        };
-      } else {
-        payload = {
-          Response_Text: value,
-          Response_Value: value,
-        };
-      }
-      if (netInfo.isConnected) {
-        const zohoResponse = await axios.patch(
-          `${process.env.EXPO_PUBLIC_ZOHO_BASE_URL}/zoho/update-record`,
-          {
-            id: record.ID,
-            data: JSON.stringify(payload),
-            report_name: "All_Maintenance_Scheduler_Task_List",
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
-        console.log("Response", zohoResponse.data);
+        console.log("Doc found and updated", updatedDoc);
         return;
       }
-      payload.ID = record.ID;
-      addToQueue(payload);
+      const createdDoc = await databases.createDocument(
+        store.database_id,
+        store.collections.appwrite_pm_sync,
+        ID.unique(),
+        payload
+      );
+      console.log("Doc found and created", createdDoc);
     } catch (error: any) {
-      console.log("Error updating record", error);
+      console.log("Error pushing data to appwrite", error);
     }
   };
+
+  const openImagePicker = async () => {};
 
   return (
     <View className={`border border-slate-300 rounded-2xl ${className}`}>
@@ -196,15 +136,15 @@ const TaskCard = ({ record, className, taskDetail, onComplete }: Task) => {
         <View
           className={`${"bg-blue-100"} flex-row p-3 justify-between rounded-t-2xl`}
         >
-          <Text>{taskDetail?.Task_Name}</Text>
+          <Text>{record?.task}</Text>
         </View>
 
         <View className="rounded-b-2xl p-2 bg-white gap-2">
           <View className="flex-row gap-2">
             <View className="gap-4 flex-1">
-              {taskDetail.Field_Type.zc_display_value === "Multiple Choice" ||
-              taskDetail.Field_Type.zc_display_value === "Expense" ||
-              taskDetail.Field_Type.zc_display_value === "Consumption" ? (
+              {record.field_type === "Multiple Choice" ||
+              record.field_type === "Expense" ||
+              record.field_type === "Consumption" ? (
                 <View className="h-[40px] border justify-center rounded-lg border-slate-300 mt-3">
                   <Picker
                     selectedValue={response}
@@ -216,14 +156,14 @@ const TaskCard = ({ record, className, taskDetail, onComplete }: Task) => {
                     {choices.map((choice: any) => (
                       <Picker.Item
                         key={choice.ID}
-                        label={choice.zc_display_value}
-                        value={choice.zc_display_value}
+                        label={choice.Choice}
+                        value={choice.Choice}
                       />
                     ))}
                   </Picker>
                 </View>
-              ) : taskDetail.Field_Type.zc_display_value === "Number" ||
-                taskDetail.Field_Type.zc_display_value === "Meter Reading" ? (
+              ) : record.field_type === "Number" ||
+                record.field_type === "Meter Reading" ? (
                 <View>
                   <TextInput
                     className="border border-slate-300 rounded"

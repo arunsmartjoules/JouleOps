@@ -1,12 +1,11 @@
-import React from "react";
 import { Redirect, Tabs } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useAuth } from "@clerk/clerk-expo";
+import { useAuth } from "@/context/AuthContext";
 
 const Layout = () => {
-  const { isSignedIn } = useAuth();
-  if (!isSignedIn) {
-    return <Redirect href="/" />;
+  const { user } = useAuth();
+  if (!user) {
+    return <Redirect href={"/(auth)/sign-in"} />;
   }
   return (
     <Tabs>
@@ -31,6 +30,13 @@ const Layout = () => {
           ),
 
           tabBarLabel: "Profile",
+        }}
+      />
+      <Tabs.Screen
+        name="[id]"
+        options={{
+          href: null,
+          headerShown: false,
         }}
       />
     </Tabs>

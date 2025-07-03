@@ -1,85 +1,24 @@
 import * as React from "react";
 import { Text, TextInput, TouchableOpacity, View } from "react-native";
-import { useSignUp } from "@clerk/clerk-expo";
 import { Link, useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
+import { account } from "@/util/appwrite";
+import { ID } from "react-native-appwrite";
 
 export default function SignUpScreen() {
-  const { isLoaded, signUp, setActive } = useSignUp();
-  const router = useRouter();
-
   const [emailAddress, setEmailAddress] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const [pendingVerification, setPendingVerification] = React.useState(false);
-  const [code, setCode] = React.useState("");
-
+  const [visibilityOff, setVisibilityOff] = React.useState<boolean>(true);
+  const router = useRouter();
   const onSignUpPress = async () => {
-    if (!isLoaded) return;
-
     try {
-      await signUp.create({
-        emailAddress,
-        password,
-      });
-
-      // Send user an email with verification code
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-
-      setPendingVerification(true);
+      const promise = await account.create(ID.unique(), emailAddress, password);
+      console.log("Account Created", promise);
+      router.push("/");
     } catch (err) {
       console.error(JSON.stringify(err, null, 2));
     }
   };
-
-  const onVerifyPress = async () => {
-    if (!isLoaded) return;
-
-    try {
-      const signUpAttempt = await signUp.attemptEmailAddressVerification({
-        code,
-      });
-      if (signUpAttempt.status === "complete") {
-        await setActive({ session: signUpAttempt.createdSessionId });
-        router.replace("/");
-      } else {
-        console.error(JSON.stringify(signUpAttempt, null, 2));
-      }
-    } catch (err) {
-      console.error(JSON.stringify(err, null, 2));
-    }
-  };
-
-  if (pendingVerification) {
-    return (
-      <View className="flex-1 items-center justify-center bg-blue-50 p-2">
-        <View className="gap-[30px] w-full">
-          <View className="w-full">
-            <Text className="text-center text-xl font-bold">
-              Verify your email
-            </Text>
-          </View>
-          <View>
-            <View className="w-full flex-row items-center gap-2 border-b border-slate-300">
-              <TextInput
-                value={code}
-                placeholder="Enter your verification code"
-                autoComplete="sms-otp"
-                onChangeText={(code) => setCode(code)}
-              />
-            </View>
-            <View className="mt-5">
-              <TouchableOpacity
-                onPress={onVerifyPress}
-                className="bg-blue-600 py-3 px-6 rounded-full mb-[50px]"
-              >
-                <Text className="text-white text-center">Verify</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View className="flex-1 items-center justify-center bg-blue-50 p-2">
@@ -107,10 +46,15 @@ export default function SignUpScreen() {
               <MaterialIcons name="lock" size={20} />
               <TextInput
                 className="flex-1"
-                placeholder="Choose your password"
-                secureTextEntry
+                placeholder="Enter your password"
                 value={password}
+                secureTextEntry={visibilityOff}
                 onChange={(e) => setPassword(e.nativeEvent.text)}
+              />
+              <MaterialIcons
+                name={visibilityOff ? "visibility-off" : "visibility"}
+                size={20}
+                onPress={() => setVisibilityOff(!visibilityOff)}
               />
             </View>
           </View>

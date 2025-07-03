@@ -5,7 +5,6 @@ import {
   Modal,
   Text,
   FlatList,
-  Platform,
 } from "react-native";
 import React, { useEffect, useState } from "react";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -14,12 +13,14 @@ import ActivityCard from "@/components/ActivityCard";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import InputBox from "@/components/InputBox";
 import Scanner from "@/components/Scanner";
-import { useMaintenanceStore, useUserStore } from "../storing/store";
 import { getRecords } from "@/util/zohoApi";
-import NetInfo from "@react-native-community/netinfo";
-import { useUser } from "@clerk/clerk-expo";
 import "expo-dev-client";
-import { registerBackgroundTask } from "@/util/backgroundSync";
+import {
+  useAppWriteStore,
+  useAppwriteZohoUser,
+  useMaintenanceSchedulerReport,
+} from "@/storing/appwrite.store";
+import { createMaintenanceScheduler } from "@/util/appwrite.fetchscheduler";
 
 const Index = () => {
   const [startDate, setStartDate] = useState(new Date());
@@ -29,93 +30,45 @@ const Index = () => {
   const [activityList, setActivityList] = useState<any>([]);
   const [tab, setTab] = useState<string>("Pending");
 
-  const {
-    data: user,
-    fetchData: fetchUser,
-    loadCache: loadUserCache,
-  } = useUserStore();
+  const { user } = useAppwriteZohoUser();
+  const { store } = useAppWriteStore();
 
-  const { data, loading, error, fetchData, updateData, loadCache } =
-    useMaintenanceStore();
-
-  const { user: loginUser } = useUser();
+  const { scheduler_data, setSchedulerData, setTaskData } =
+    useMaintenanceSchedulerReport();
 
   interface HandleApply {
     (date: any): Promise<void>;
   }
 
   useEffect(() => {
-    if (Platform.OS === "android" || Platform.OS === "ios") {
-      registerBackgroundTask();
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!user?.Sites) return;
+    if (!user) return;
     const start = async () => {
-      setStartDate(new Date());
-      const netInfo = await NetInfo.fetch();
-      if (netInfo.isConnected) {
-        const site_list = user.Sites.map((i: any) => i.ID);
-        await fetchData(site_list);
-        return;
+      const { my_sites } = user;
+      try {
+        const response = await createMaintenanceScheduler(
+          my_sites,
+          dayjs(startDate).format("DD-MMM-YYYY"),
+          store
+        );
+        const { combinedData, taskListData } = response;
+        setSchedulerData(combinedData);
+        setTaskData(taskListData);
+      } catch (error: any) {
+        console.log("Error fetching data from store", error);
       }
-      await loadCache();
     };
     start();
-  }, [user]);
+  }, [user, startDate]); // ← Add `startDate` here
 
   useEffect(() => {
-    const init = async () => {
-      const netInfo = await NetInfo.fetch();
-      if (netInfo.isConnected) {
-        await fetchUser(loginUser?.emailAddresses[0].emailAddress);
-        return;
-      }
-      loadUserCache();
-    };
-    init();
-  }, [loginUser]);
-
-  useEffect(() => {
-    if (!data) return;
-    setActivityList(data);
-  }, [data]);
+    if (!scheduler_data) return;
+    setActivityList(scheduler_data);
+  }, [scheduler_data]);
 
   const handleDateChange: HandleApply = async (date: any) => {
     setStartDateCalendar(false);
     setStartDate(date);
-    const records = data.filter(
-      (record: any) => record.Start_Date === dayjs(date).format("DD-MMM-YYYY")
-    );
-    if (records.length === 0) {
-      const allData = await Promise.allSettled(
-        data.Sites.map(async (site: any) => {
-          try {
-            const newData = await getRecords(
-              "All_Maintenance_Scheduler_Report",
-              `(Start_Date == '${dayjs(date).format(
-                "DD-MMM-YYYY"
-              )}') && (Site_Name))`
-            );
-            return newData.response.data;
-          } catch (error: any) {
-            console.log("Error fetching data", error);
-            return [];
-          }
-        })
-      );
-      const combinedData = allData
-        .filter((r) => r?.status === "fulfilled" && Array.isArray(r.value)) // safe check
-        .flatMap((r: any) => r.value);
-
-      updateData(combinedData);
-    }
   };
-
-  // TEst
-
-  // Test
 
   const handleSearch = (value: string) => {
     setSearchText(value);
@@ -129,7 +82,6 @@ const Index = () => {
       "All_Maintenance_Scheduler_Report",
       customCriteria
     );
-    updateData(newData.response.data);
     setOpenQr(false);
   };
 
@@ -204,21 +156,19 @@ const Index = () => {
         <View className="flex-1">
           {tab === "Pending" ? (
             <FlatList
-              keyExtractor={(item: any) => item.ID.toString()}
-              data={activityList.filter(
-                (rec: any) =>
-                  rec.Start_Date === dayjs(startDate).format("DD-MMM-YYYY") &&
-                  rec.Status === "Pending"
-              )}
+              keyExtractor={(item: any) =>
+                item.maintenance_scheduler_id.toString()
+              }
+              data={activityList.filter((rec: any) => rec.status === "Pending")}
               renderItem={({ item, index }) => <ActivityCard record={item} />}
             />
           ) : (
             <FlatList
-              keyExtractor={(item: any) => item.ID.toString()}
+              keyExtractor={(item: any) =>
+                item.maintenance_scheduler_id.toString()
+              }
               data={activityList.filter(
-                (rec: any) =>
-                  rec.Start_Date === dayjs(startDate).format("DD-MMM-YYYY") &&
-                  rec.Status === "Completed"
+                (rec: any) => rec.status === "Completed"
               )}
               renderItem={({ item, index }) => <ActivityCard record={item} />}
             />

@@ -11,7 +11,6 @@
     "lint": "expo lint"
   },
   "dependencies": {
-    "@clerk/clerk-expo": "^2.11.2",
     "@expo/vector-icons": "^14.1.0",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/datetimepicker": "8.4.1",
@@ -45,13 +44,16 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.4",
+    "react-native-appwrite": "^0.10.0",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.11.1",
     "react-native-signature-canvas": "^4.7.4",
+    "react-native-url-polyfill": "^2.0.0",
     "react-native-web": "~0.20.0",
     "react-native-webview": "13.13.5",
+    "rxdb": "^16.15.0",
     "tailwindcss": "^3.4.17",
     "zustand": "^5.0.5"
   },
@@ -61,6 +63,13 @@
     "eslint": "^9.25.0",
     "eslint-config-expo": "~9.2.0",
     "typescript": "~5.8.3"
+  },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "listUnknownPackages": false
+      }
+    }
   },
   "private": true
 }

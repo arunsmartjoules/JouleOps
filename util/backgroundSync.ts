@@ -1,4 +1,4 @@
-import { useOfflineSyncStore } from "@/app/storing/store";
+import { useOfflineSyncStore } from "@/storing/store";
 import * as BackgroundTask from "expo-background-task";
 import * as TaskManager from "expo-task-manager";
 

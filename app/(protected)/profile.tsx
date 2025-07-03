@@ -2,32 +2,52 @@ import { View, Text, Image, TouchableOpacity, TextInput } from "react-native";
 import React, { useEffect, useState } from "react";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useClerk, useUser } from "@clerk/clerk-expo";
-import { useUserStore } from "../storing/store";
+import { useAuth } from "@/context/AuthContext";
+import { useAppWriteStore } from "@/storing/appwrite.store";
+import { databases } from "@/util/appwrite";
+import { Query } from "react-native-appwrite";
 
 const Profile = () => {
   const [imgUrl, setImgUrl] = useState<any>(null);
+  const { user } = useAuth();
+
   const router = useRouter();
-  const { signOut } = useClerk();
+  const { signOut } = useAuth();
+  const { store } = useAppWriteStore();
+  const [siteList, setSiteList] = useState<string>("");
 
   const [employee, setEmployee] = useState<any>(null);
 
   const handleSignOut = async () => {
     try {
-      await signOut();
-      router.replace("/sign-in");
+      signOut();
+      router.push("/(auth)/sign-in");
     } catch (error) {
       console.error("Errr Signing out", error);
     }
   };
 
-  const { data } = useUserStore();
+  const fetchDataFromAppwrite = async () => {
+    try {
+      const data = await databases.listDocuments(
+        store.database_id,
+        store.collections.users,
+        [Query.equal("email", user?.email)]
+      );
+      setEmployee(data.documents[0]);
+      const site_list = data.documents[0].my_sites;
+      const site_names = `[${site_list}]`;
+      const siteArray = JSON.parse(site_names);
+      const siteNames = siteArray.map((site: any) => site.Site_Name);
+      setSiteList(siteNames.join(", "));
+    } catch (error: any) {
+      console.log("Error fetching data from appwrite", error);
+    }
+  };
 
   useEffect(() => {
-    if (data) {
-      setEmployee(data);
-    }
-  }, [data]);
+    fetchDataFromAppwrite();
+  }, []);
 
   return (
     <View className="flex-1 p-2">
@@ -48,7 +68,7 @@ const Profile = () => {
           <View className="flex-col gap-1 mb-3 w-full">
             <Text>Name</Text>
             <TextInput
-              value={employee?.Employee_Name}
+              value={employee?.employee_name}
               readOnly
               className="bg-transparent border border-slate-300 rounded-md"
             />
@@ -56,7 +76,7 @@ const Profile = () => {
           <View className="flex-col gap-1 mb-3 w-full">
             <Text>Email</Text>
             <TextInput
-              value={employee?.Email}
+              value={employee?.email}
               readOnly
               className="bg-transparent border border-slate-300 rounded-md"
             />
@@ -64,18 +84,7 @@ const Profile = () => {
           <View className="flex-col gap-1 mb-3 w-full">
             <Text>Sites</Text>
             <TextInput
-              value={employee?.Sites.map((site: any) => site.Site_Name).join(
-                ", "
-              )}
-              multiline
-              readOnly
-              className="bg-transparent border border-slate-300 rounded-md"
-            />
-          </View>
-          <View className="flex-col gap-1 mb-3 w-full">
-            <Text>Designation</Text>
-            <TextInput
-              value={employee?.Designation.Role_Name}
+              value={siteList}
               multiline
               readOnly
               className="bg-transparent border border-slate-300 rounded-md"
